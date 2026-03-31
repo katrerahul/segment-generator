@@ -1,4 +1,4 @@
-name: cm_create
+name: cm_create_test
 
 on:
   issue_comment:

@@ -1,4 +1,4 @@
-name: 'Segment Generator Pipeline'
+name: 'Segment Generator Pipeline CM'
 
 on:
     push:
