@@ -1,0 +1,81 @@
+name: 'Segment Generator Pipeline'
+
+on:
+    push:
+        branches: [ main ]
+    pull_request:
+        branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4 
+
+    - name: print
+      run: echo "${{ secrets.GCP_PROJECT_ID}}"
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+        
+    - name: Set up Cloud SDK 
+      uses: google-github-actions/setup-gcloud@v2
+      with:
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
+        
+    - name: List files
+      run: |
+        echo "Current path: $(pwd)"
+        ls -al
+        echo "=== Checking for Dockerfile specifically ==="
+        if [ -f "Dockerfile" ]; then
+          echo "✅ Dockerfile found!"
+          echo "File size: $(wc -c < Dockerfile) bytes"
+        else
+          echo "❌ Dockerfile NOT found!"
+        fi
+
+    - name: Authorize Docker for Artifact Registry
+      run: |
+        gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+    
+    - name: Build and Push Segment Generator Docker Image
+      run: |
+        gcloud builds submit --tag us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/jumperdevops/devops-segment-generator-demo-image:$GITHUB_SHA . --gcs-log-dir gs://jumperdevnew_cloudbuild/
+
+    - name: Deploy to Cloud Run
+      run: |
+        gcloud run deploy segment-generator \
+          --image=us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/jumperdevops/devops-segment-generator-demo-image:$GITHUB_SHA \
+          --region=us-central1 \
+          --project=jumperdevnew \
+          --platform=managed \
+          --allow-unauthenticated
+
+    - name: Slack Notification (Success)
+      if: success()
+      uses: slackapi/slack-github-action@v1.25.0
+      with:
+        payload: |
+          {
+            "text": "✅ *Segment Generator Deployment* succeeded\n\n*Repo:* ${{ github.repository }}\n*Branch:* ${{ github.ref_name }}\n*Commit:* ${{ github.sha }}\n*Triggered by:* ${{ github.actor }}"
+          }
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+    - name: Slack Notification (Failure)
+      if: failure()
+      uses: slackapi/slack-github-action@v1.25.0
+      with:
+        payload: |
+          {
+            "text": "❌ *Segment Generator Deployment* failed!\n\n*Repo:* ${{ github.repository }}\n*Branch:* ${{ github.ref_name }}\n*Commit:* ${{ github.sha }}\n*Triggered by:* ${{ github.actor }}"
+          }
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

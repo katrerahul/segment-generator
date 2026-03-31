@@ -1,0 +1,45 @@
+name: cm_create
+
+on:
+  issue_comment:
+    types: [ created ]
+
+jobs:
+  cm-create:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.issue.pull_request && startsWith(github.event.comment.body, '/apicm') }}
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v5
+      - name: Read Content repository level
+        run: |
+          echo "CONTENT_REPO<<EOF" >> $GITHUB_ENV
+          cat .github/apicm/default.yml >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+      - name: Read Content component level
+        run: |
+          echo "CONTENT_COMPONENT<<EOF" >> $GITHUB_ENV
+          cat .github/apicm/module-a.yml >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+      - name: Read Content from PR comment
+        run: |
+          CONTENT_COMMENT=$(echo "${{ github.event.comment.body }}" | sed '1d')
+          echo "CONTENT_COMMENT<<EOF" >> $GITHUB_ENV
+          echo "$CONTENT_COMMENT" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+      - name: CM ticket
+        id: cm-ticket
+        uses: vonage-technology/api-ept-tools/tools/cm-automation/gh-actions/cm-ticket-creation@Jenkins
+        with:
+          token: ${{ secrets.APICM_AUTOMATION_JIRA_TOKEN }}
+          content-repo-level: ${{ env.CONTENT_REPO }}
+          content-component-level: ${{ env.CONTENT_COMPONENT }}
+          content-pr-level: ${{ env.CONTENT_COMMENT }}
+      - name: Print CM ticket info
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MESSAGE: ${{ steps.fields.outputs.MESSAGE }}
+        run: |
+          echo "CM ticket key: ${{ steps.cm-ticket.outputs.KEY }}"
+          echo "CM ticket url: ${{ steps.cm-ticket.outputs.URL }}"
+          gh pr comment ${{ github.event.issue.number }} --body "Created CM ticket ${{ steps.cm-ticket.outputs.KEY }} at ${{ steps.cm-ticket.outputs.URL }}"

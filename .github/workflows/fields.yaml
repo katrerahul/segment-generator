@@ -1,0 +1,35 @@
+name: cm_fields
+
+on:
+  pull_request:
+    types:
+      - opened
+
+jobs:
+  print-fields:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call cm-ticket-fields
+        id: fields
+        uses: vonage-technology/api-ept-tools/tools/cm-automation/gh-actions/cm-ticket-fields@Jenkins
+        with:
+          SUMMARY: "Default Summary"
+          DESCRIPTION: "Default Description"
+          DEPLOYER: pkotlicki
+          RISK_SECURITY: No
+          RISK_SERVICE: Low
+          START: 2025-12-01T10:00:00.000+0100
+          END: 2025-12-02T10:00:00.000+0100
+          RISK_SERVICE_RATIONALE: "Default Risk to Service Rationale"
+          RISK_SECURITY_RATIONALE: "Default Risk to Security Rationale"
+          ROLLBACK_VERSION: 1.1
+          EPIC_LINK: "VIDD-?"
+      - name: checkout repository
+        uses: actions/checkout@v5
+      - name: Print fields
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MESSAGE: ${{ steps.fields.outputs.MESSAGE }}
+        run: |
+          echo "$MESSAGE"
+          gh pr comment ${{ github.event.pull_request.number }} --body "$MESSAGE"
